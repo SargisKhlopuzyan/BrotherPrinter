@@ -17,14 +17,20 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.brother.ptouch.sdk.LabelInfo;
 import com.brother.ptouch.sdk.Printer;
 import com.brother.ptouch.sdk.PrinterInfo;
 import com.brother.ptouch.sdk.PrinterStatus;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class BrotherMainActivity extends AppCompatActivity {
 
@@ -37,6 +43,12 @@ public class BrotherMainActivity extends AppCompatActivity {
     EditText company;
     EditText position;
     ImageView imageView;
+
+    Spinner spinner;
+    TextView textViewSelected;
+    TextView textViewErrorCode;
+
+    int selectedPosition = 0;
 
 
     //************************************//
@@ -54,11 +66,32 @@ public class BrotherMainActivity extends AppCompatActivity {
         position = findViewById(R.id.editTextPosition);
         imageView  = findViewById(R.id.imageView);
 
-
         //************************************//
+
+        spinner = findViewById(R.id.spinner);
+        textViewSelected = findViewById(R.id.textViewSelected);
+        textViewErrorCode = findViewById(R.id.textViewErrorCode);
+
+        CustomArrayAdapter adapter = new CustomArrayAdapter(this, getLabels());
+        spinner.setAdapter(adapter);
+
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPosition = getLabels().get(position).ordinal();
+                textViewSelected.setText("" + selectedPosition);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
         if(!hasPermissions(this, PERMISSIONS)){
             ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_ALL);
         }
+
         //************************************//
     }
 
@@ -72,9 +105,11 @@ public class BrotherMainActivity extends AppCompatActivity {
         int width = (int)(paint.measureText(text) + 0.5f);
         int height = (int)(baseLine + paint.descent() + 0.5f);
 
-        Bitmap image = Bitmap.createBitmap(width + 500, height + 350, Bitmap.Config.ARGB_8888);
+//        Bitmap image = Bitmap.createBitmap(width + 500, height + 350, Bitmap.Config.ARGB_8888);
+        Bitmap image = Bitmap.createBitmap(width + 50, height + 250, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(image);
-        canvas.drawRect(0,0,width + 500,height + 350, paint);
+//        canvas.drawRect(0,0,width + 500,height + 350, paint);
+        canvas.drawRect(0,0,width + 50,height + 250, paint);
         paint.setColor(textColor);
         canvas.drawText(text, 0, baseLine, paint);
         canvas.drawText(text1, 0, baseLine + 100, paint);
@@ -89,7 +124,6 @@ public class BrotherMainActivity extends AppCompatActivity {
     public void onButtonPrintClick(View v) {
 
         myPrinter2 = new Printer();
-
 
         //************************************//
         UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -123,42 +157,24 @@ public class BrotherMainActivity extends AppCompatActivity {
         }
         //************************************//
 
-
         myPrinterInfo2 = new PrinterInfo();
-
         myPrinterInfo2 = myPrinter2.getPrinterInfo();
-        myPrinterInfo2.printerModel = PrinterInfo.Model.QL_800;//QL_720NW
-        myPrinterInfo2.port = PrinterInfo.Port.USB; //NET
+        myPrinterInfo2.printerModel = PrinterInfo.Model.QL_800;
+        myPrinterInfo2.port = PrinterInfo.Port.USB;
         myPrinterInfo2.paperSize = PrinterInfo.PaperSize.CUSTOM;
         myPrinterInfo2.orientation = PrinterInfo.Orientation.LANDSCAPE;
         myPrinterInfo2.valign = PrinterInfo.VAlign.MIDDLE;
         myPrinterInfo2.align = PrinterInfo.Align.CENTER;
+        myPrinterInfo2.halftone = PrinterInfo.Halftone.THRESHOLD; //
         myPrinterInfo2.printMode = PrinterInfo.PrintMode.ORIGINAL;
         myPrinterInfo2.numberOfCopies = 1;
-//        myPrinterInfo2.ipAddress = "172.20.10.2";
-
-        myPrinterInfo2.labelNameIndex = LabelInfo.QL700.W62H100.ordinal();
-//        myPrinterInfo2.labelNameIndex = LabelInfo.QL700.W62.ordinal();
-
+        myPrinterInfo2.labelNameIndex = selectedPosition; // myPrinterInfo2.labelNameIndex = LabelInfo.QL700.W62RB.ordinal();
         myPrinterInfo2.isAutoCut = true;
         myPrinterInfo2.isCutAtEnd = false;
         myPrinterInfo2.isHalfCut = false;
         myPrinterInfo2.isSpecialTape = false;
 
         myPrinter2.setPrinterInfo(myPrinterInfo2);
-
-        //************************************//
-//        LabelInfo mLabelInfo = new LabelInfo();
-//        mLabelInfo.labelNameIndex = 5;
-//        mLabelInfo.isAutoCut = true;
-//        mLabelInfo.isEndCut = true;
-//        mLabelInfo.isHalfCut = false;
-//        mLabelInfo.isSpecialTape = false;
-//        myPrinter2.setLabelInfo(mLabelInfo);
-//
-//        BluetoothAdapter bluetoothAdapter = BluetoothAdapter. getDefaultAdapter ();
-//        myPrinter2.setBluetooth(bluetoothAdapter);
-        //************************************//
 
         imageToPrint = textAsBitmap(fullName.getText().toString(), company.getText().toString(), position.getText().toString(), 96, Color.BLACK);
         print2();
@@ -179,6 +195,7 @@ public class BrotherMainActivity extends AppCompatActivity {
 
             if (printResult2.errorCode != PrinterInfo.ErrorCode.ERROR_NONE) {
                 //TODO - Alert Message
+                textViewErrorCode.setText("errorCode: " + printResult2.errorCode.name());
                 showToast("errorCode: " + printResult2.errorCode.name());
             }
 
@@ -189,12 +206,39 @@ public class BrotherMainActivity extends AppCompatActivity {
     private void showToast(String text) {
         runOnUiThread(() -> {
             Log.e("LOG_TAG", "Toast: " + text);
+            textViewErrorCode.setText(text);
             Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
         });
     }
 
-
     //************************************//
+
+    private List<LabelInfo.QL700> getLabels() {
+        List<LabelInfo.QL700> list = new ArrayList<>();
+        list.add(LabelInfo.QL700.W62H100);
+        list.add(LabelInfo.QL700.W62);
+        list.add(LabelInfo.QL700.W12);
+        list.add(LabelInfo.QL700.W17H54);
+        list.add(LabelInfo.QL700.W17H87);
+        list.add(LabelInfo.QL700.W23H23);
+        list.add(LabelInfo.QL700.W29);
+        list.add(LabelInfo.QL700.W29H42);
+        list.add(LabelInfo.QL700.W29H90);
+        list.add(LabelInfo.QL700.W38);
+        list.add(LabelInfo.QL700.W38H90);
+        list.add(LabelInfo.QL700.W39H48);
+        list.add(LabelInfo.QL700.W50);
+        list.add(LabelInfo.QL700.W52H29);
+        list.add(LabelInfo.QL700.W54);
+        list.add(LabelInfo.QL700.W54H29);
+        list.add(LabelInfo.QL700.W60H86);
+        list.add(LabelInfo.QL700.W62H29);
+        list.add(LabelInfo.QL700.W62RB);
+        list.add(LabelInfo.QL700.UNSUPPORT);
+        return list;
+    }
+
+
     int PERMISSION_ALL = 1;
     String[] PERMISSIONS = {
             android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -231,6 +275,7 @@ public class BrotherMainActivity extends AppCompatActivity {
 
     public void onTestClick(View view) {
     }
+
     //************************************//
 
 }
