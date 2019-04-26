@@ -50,9 +50,7 @@ public class BrotherMainActivity extends AppCompatActivity {
 
     int selectedPosition = 0;
 
-
     //************************************//
-    //TODO
     private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
     //************************************//
 
@@ -61,12 +59,12 @@ public class BrotherMainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_brother_main);
 
+        //************************************//
+
         fullName = findViewById(R.id.editTextFullName);
         company = findViewById(R.id.editTextCompany);
         position = findViewById(R.id.editTextPosition);
         imageView  = findViewById(R.id.imageView);
-
-        //************************************//
 
         spinner = findViewById(R.id.spinner);
         textViewSelected = findViewById(R.id.textViewSelected);
@@ -75,6 +73,7 @@ public class BrotherMainActivity extends AppCompatActivity {
         CustomArrayAdapter adapter = new CustomArrayAdapter(this, getLabels());
         spinner.setAdapter(adapter);
 
+        spinner.setSelection(adapter.getCount() - 2);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 
             @Override
@@ -128,34 +127,25 @@ public class BrotherMainActivity extends AppCompatActivity {
         //************************************//
         UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         if (usbManager == null) {
-            showToast("usbManager == null");
+            showToast("usbManager == null", true);
             return;
         }
 
         UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
         if (usbDevice == null) {
-            showToast("usbDevice == null");
+            showToast("usbDevice == null", true);
             return;
         }
 
-        PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
-        usbManager.requestPermission(usbDevice, permissionIntent);
-        registerReceiver(mUsbReceiver, new IntentFilter(ACTION_USB_PERMISSION));
-
-        while (true) {
-            if (!usbManager.hasPermission(usbDevice)) {
-                usbManager.requestPermission(usbDevice, permissionIntent);
-            } else {
-                break;
-            }
-
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                showToast("InterruptedException: " + e.getMessage());
-            }
+        if (!usbManager.hasPermission(usbDevice)) {
+            PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
+            usbManager.requestPermission(usbDevice, permissionIntent);
+            registerReceiver(mUsbReceiver, new IntentFilter(ACTION_USB_PERMISSION));
         }
         //************************************//
+    }
+
+    private void setupAndPrint() {
 
         myPrinterInfo2 = new PrinterInfo();
         myPrinterInfo2 = myPrinter2.getPrinterInfo();
@@ -169,7 +159,7 @@ public class BrotherMainActivity extends AppCompatActivity {
         myPrinterInfo2.printMode = PrinterInfo.PrintMode.ORIGINAL;
         myPrinterInfo2.numberOfCopies = 1;
         myPrinterInfo2.labelNameIndex = selectedPosition; // myPrinterInfo2.labelNameIndex = LabelInfo.QL700.W62RB.ordinal();
-        myPrinterInfo2.isAutoCut = true;
+        myPrinterInfo2.isAutoCut = false; // true
         myPrinterInfo2.isCutAtEnd = false;
         myPrinterInfo2.isHalfCut = false;
         myPrinterInfo2.isSpecialTape = false;
@@ -195,19 +185,22 @@ public class BrotherMainActivity extends AppCompatActivity {
 
             if (printResult2.errorCode != PrinterInfo.ErrorCode.ERROR_NONE) {
                 //TODO - Alert Message
-                textViewErrorCode.setText("errorCode: " + printResult2.errorCode.name());
-                showToast("errorCode: " + printResult2.errorCode.name());
+                runOnUiThread(() -> {
+                        textViewErrorCode.setText("errorCode: " + printResult2.errorCode.name());
+                        showToast("errorCode -> Alert Message : " + printResult2.errorCode.name(), true);
+                });
+
             }
 
             myPrinter2.endCommunication();
         }
     }
 
-    private void showToast(String text) {
+    private void showToast(String text, boolean showToast) {
         runOnUiThread(() -> {
             Log.e("LOG_TAG", "Toast: " + text);
             textViewErrorCode.setText(text);
-            Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
+            if (showToast) Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
         });
     }
 
@@ -261,20 +254,43 @@ public class BrotherMainActivity extends AppCompatActivity {
     BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            showToast("BroadcastReceiver -> onReceive", true);
             String action = intent.getAction();
             if (ACTION_USB_PERMISSION.equals(action)) {
                 synchronized (this) {
-                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false))
-                        showToast("USB permission granted");
-                    else
-                        showToast("USB permission rejected");
+                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                        showToast("USB permission granted", false);
+                        setupAndPrint();
+                    }
+                    else {
+                        myPrinter2 = new Printer();
+
+                        //************************************//
+                        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+                        if (usbManager == null) {
+                            showToast("usbManager == null", true);
+                            return;
+                        }
+
+                        UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
+                        if (usbDevice == null) {
+                            showToast("usbDevice == null", true);
+                            return;
+                        }
+
+                        PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
+                        usbManager.requestPermission(usbDevice, permissionIntent);
+                        registerReceiver(mUsbReceiver, new IntentFilter(ACTION_USB_PERMISSION));
+
+                        if (!usbManager.hasPermission(usbDevice)) {
+                            usbManager.requestPermission(usbDevice, permissionIntent);
+                        }
+                        showToast("USB permission rejected", false);
+                    }
                 }
             }
         }
     };
-
-    public void onTestClick(View view) {
-    }
 
     //************************************//
 

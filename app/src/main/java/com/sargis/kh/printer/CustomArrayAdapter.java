@@ -16,13 +16,10 @@ import java.util.List;
 public class CustomArrayAdapter extends ArrayAdapter<LabelInfo.QL700> {
 
     private final LayoutInflater mInflater;
-    private final Context mContext;
     private final List<LabelInfo.QL700> items;
 
     public CustomArrayAdapter(@NonNull Context context, @NonNull List<LabelInfo.QL700> objects) {
         super(context, R.layout.layout_spinner_list, 0, objects);
-
-        mContext = context;
         mInflater = LayoutInflater.from(context);
         items = objects;
     }
@@ -43,7 +40,5 @@ public class CustomArrayAdapter extends ArrayAdapter<LabelInfo.QL700> {
         textView.setText(items.get(position).toString() + " : " + items.get(position).ordinal());
         return view;
     }
-
-
 
 }
