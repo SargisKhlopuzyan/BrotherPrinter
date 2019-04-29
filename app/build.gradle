@@ -40,8 +40,6 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
     implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'], exclude: [])
-    //    implementation files('libs/jar+so/BrotherPrintLibrary.jar')
-//    implementation files('libs/BrotherPrintLibrary.aar')
-//    implementation files('libs/jar+so/BrotherPrintLibrary.jar')
-//    implementation(name: 'BrotherPrintLibrary', ext: 'aar')
+    implementation 'androidmads.library.qrgenearator:QRGenearator:1.0.3'
+
 }

@@ -6,47 +6,43 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.databinding.DataBindingUtil;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
+import android.graphics.Point;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Display;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.AdapterView;
-import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.Spinner;
-import android.widget.TextView;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import com.brother.ptouch.sdk.LabelInfo;
 import com.brother.ptouch.sdk.Printer;
 import com.brother.ptouch.sdk.PrinterInfo;
 import com.brother.ptouch.sdk.PrinterStatus;
+import com.google.zxing.WriterException;
+import com.sargis.kh.printer.databinding.ActivityBrotherMainBinding;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import androidmads.library.qrgenearator.QRGContents;
+import androidmads.library.qrgenearator.QRGEncoder;
+
 public class BrotherMainActivity extends AppCompatActivity {
+
+    ActivityBrotherMainBinding binding;
 
     public static Printer myPrinter2;
     public static Bitmap imageToPrint;
     protected PrinterStatus printResult2;
     protected PrinterInfo myPrinterInfo2;
-
-    EditText fullName;
-    EditText company;
-    EditText position;
-    ImageView imageView;
-
-    Spinner spinner;
-    TextView textViewSelected;
-    TextView textViewErrorCode;
 
     int selectedPosition = 0;
 
@@ -54,32 +50,28 @@ public class BrotherMainActivity extends AppCompatActivity {
     private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
     //************************************//
 
+    //
+    String inputValue;
+    Bitmap bitmap;
+    QRGEncoder qrgEncoder;
+
+    //
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_brother_main);
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_brother_main);
 
         //************************************//
 
-        fullName = findViewById(R.id.editTextFullName);
-        company = findViewById(R.id.editTextCompany);
-        position = findViewById(R.id.editTextPosition);
-        imageView  = findViewById(R.id.imageView);
-
-        spinner = findViewById(R.id.spinner);
-        textViewSelected = findViewById(R.id.textViewSelected);
-        textViewErrorCode = findViewById(R.id.textViewErrorCode);
-
         CustomArrayAdapter adapter = new CustomArrayAdapter(this, getLabels());
-        spinner.setAdapter(adapter);
-
-        spinner.setSelection(adapter.getCount() - 2);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        binding.spinner.setAdapter(adapter);
+        binding.spinner.setSelection(adapter.getCount() - 2);
+        binding.spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 selectedPosition = getLabels().get(position).ordinal();
-                textViewSelected.setText("" + selectedPosition);
             }
 
             @Override
@@ -91,38 +83,18 @@ public class BrotherMainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_ALL);
         }
 
+        setQRCodeImageView();
         //************************************//
+
+        binding.setOnPrintClick(v -> {
+            print();
+        });
     }
 
-    public Bitmap textAsBitmap(String text, String text1, String text2, float textSize, int textColor) {
-        Paint paint = new Paint();
-        paint.setTextSize(textSize);
-        paint.setColor(Color.WHITE);
-        paint.setTextAlign(Paint.Align.LEFT);
+    public void print() {
 
-        float baseLine = -paint.ascent();
-        int width = (int)(paint.measureText(text) + 0.5f);
-        int height = (int)(baseLine + paint.descent() + 0.5f);
-
-//        Bitmap image = Bitmap.createBitmap(width + 500, height + 350, Bitmap.Config.ARGB_8888);
-        Bitmap image = Bitmap.createBitmap(width + 50, height + 250, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(image);
-//        canvas.drawRect(0,0,width + 500,height + 350, paint);
-        canvas.drawRect(0,0,width + 50,height + 250, paint);
-        paint.setColor(textColor);
-        canvas.drawText(text, 0, baseLine, paint);
-        canvas.drawText(text1, 0, baseLine + 100, paint);
-        canvas.drawText(text2, 0, baseLine + 200, paint);
-        return image;
-    }
-
-    public void onButtonPreviewClick(View v) {
-        imageView.setImageBitmap(textAsBitmap(fullName.getText().toString(), company.getText().toString(), position.getText().toString(), 36, Color.BLACK));
-    }
-
-    public void onButtonPrintClick(View v) {
-
-        myPrinter2 = new Printer();
+        if (myPrinter2 == null)
+            myPrinter2 = new Printer();
 
         //************************************//
         UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -141,32 +113,65 @@ public class BrotherMainActivity extends AppCompatActivity {
             PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
             usbManager.requestPermission(usbDevice, permissionIntent);
             registerReceiver(mUsbReceiver, new IntentFilter(ACTION_USB_PERMISSION));
+            return;
         }
+
+        Log.e("LOGGGG", "print()");
+
+        setupAndPrint();
         //************************************//
     }
 
-    private void setupAndPrint() {
+    private void setQRCodeImageView() {
+        inputValue = "Sargis Khlopuzyan, Android Developer";
+        if (inputValue.length() > 0) {
+            WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
+            Display display = manager.getDefaultDisplay();
+            Point point = new Point();
+            display.getSize(point);
+            int width = point.x;
+            int height = point.y;
+            int smallerDimension = width < height ? width : height;
+            smallerDimension = smallerDimension * 4 / 4; // 3 / 4
 
+            qrgEncoder = new QRGEncoder(
+                    inputValue, null,
+                    QRGContents.Type.TEXT,
+                    smallerDimension);
+            try {
+                bitmap = qrgEncoder.encodeAsBitmap();
+                binding.layoutTicket.imageViewQr.setImageBitmap(bitmap);
+            } catch (WriterException e) {
+                showToast("WriterException: " + e.toString(), true);
+            }
+        } else {
+            showToast("Required", true);
+        }
+    }
+
+    private void setupAndPrint() {
         myPrinterInfo2 = new PrinterInfo();
         myPrinterInfo2 = myPrinter2.getPrinterInfo();
         myPrinterInfo2.printerModel = PrinterInfo.Model.QL_800;
         myPrinterInfo2.port = PrinterInfo.Port.USB;
         myPrinterInfo2.paperSize = PrinterInfo.PaperSize.CUSTOM;
-        myPrinterInfo2.orientation = PrinterInfo.Orientation.LANDSCAPE;
+        myPrinterInfo2.orientation = PrinterInfo.Orientation.PORTRAIT; //LANDSCAPE;
         myPrinterInfo2.valign = PrinterInfo.VAlign.MIDDLE;
         myPrinterInfo2.align = PrinterInfo.Align.CENTER;
         myPrinterInfo2.halftone = PrinterInfo.Halftone.THRESHOLD; //
-        myPrinterInfo2.printMode = PrinterInfo.PrintMode.ORIGINAL;
+        myPrinterInfo2.printMode = PrinterInfo.PrintMode.FIT_TO_PAPER; //ORIGINAL;
         myPrinterInfo2.numberOfCopies = 1;
         myPrinterInfo2.labelNameIndex = selectedPosition; // myPrinterInfo2.labelNameIndex = LabelInfo.QL700.W62RB.ordinal();
         myPrinterInfo2.isAutoCut = false; // true
         myPrinterInfo2.isCutAtEnd = false;
         myPrinterInfo2.isHalfCut = false;
         myPrinterInfo2.isSpecialTape = false;
-
         myPrinter2.setPrinterInfo(myPrinterInfo2);
 
-        imageToPrint = textAsBitmap(fullName.getText().toString(), company.getText().toString(), position.getText().toString(), 96, Color.BLACK);
+        FrameLayout view = findViewById(R.id.frame_layout_ticket);
+        view.setDrawingCacheEnabled(true);
+        view.buildDrawingCache();
+        imageToPrint = view.getDrawingCache();
         print2();
     }
 
@@ -184,9 +189,9 @@ public class BrotherMainActivity extends AppCompatActivity {
             printResult2 = myPrinter2.printImage(imageToPrint);
 
             if (printResult2.errorCode != PrinterInfo.ErrorCode.ERROR_NONE) {
-                //TODO - Alert Message
+
                 runOnUiThread(() -> {
-                        textViewErrorCode.setText("errorCode: " + printResult2.errorCode.name());
+                    binding.textViewErrorCode.setText("errorCode: " + printResult2.errorCode.name());
                         showToast("errorCode -> Alert Message : " + printResult2.errorCode.name(), true);
                 });
 
@@ -199,7 +204,7 @@ public class BrotherMainActivity extends AppCompatActivity {
     private void showToast(String text, boolean showToast) {
         runOnUiThread(() -> {
             Log.e("LOG_TAG", "Toast: " + text);
-            textViewErrorCode.setText(text);
+            binding.textViewErrorCode.setText(text);
             if (showToast) Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
         });
     }
@@ -230,7 +235,6 @@ public class BrotherMainActivity extends AppCompatActivity {
         list.add(LabelInfo.QL700.UNSUPPORT);
         return list;
     }
-
 
     int PERMISSION_ALL = 1;
     String[] PERMISSIONS = {
@@ -263,7 +267,8 @@ public class BrotherMainActivity extends AppCompatActivity {
                         setupAndPrint();
                     }
                     else {
-                        myPrinter2 = new Printer();
+                        if (myPrinter2 == null)
+                            myPrinter2 = new Printer();
 
                         //************************************//
                         UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -280,7 +285,6 @@ public class BrotherMainActivity extends AppCompatActivity {
 
                         PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
                         usbManager.requestPermission(usbDevice, permissionIntent);
-                        registerReceiver(mUsbReceiver, new IntentFilter(ACTION_USB_PERMISSION));
 
                         if (!usbManager.hasPermission(usbDevice)) {
                             usbManager.requestPermission(usbDevice, permissionIntent);
