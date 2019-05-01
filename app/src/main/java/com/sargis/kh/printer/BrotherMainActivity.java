@@ -8,10 +8,13 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.databinding.DataBindingUtil;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Point;
+import android.graphics.drawable.Drawable;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -19,7 +22,6 @@ import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
-import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import com.brother.ptouch.sdk.LabelInfo;
@@ -29,8 +31,7 @@ import com.brother.ptouch.sdk.PrinterStatus;
 import com.google.zxing.WriterException;
 import com.sargis.kh.printer.databinding.ActivityBrotherMainBinding;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
 import androidmads.library.qrgenearator.QRGContents;
 import androidmads.library.qrgenearator.QRGEncoder;
@@ -48,6 +49,10 @@ public class BrotherMainActivity extends AppCompatActivity {
 
     //************************************//
     private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
+
+    private static final String REQUEST_CODE_USB_PERMISSION = "REQUEST_CODE_USB_PERMISSION";
+    private static final int REQUEST_CODE_PRINT = 1;
+    private static final int REQUEST_CODE_GET_PRINTER_MODEL_AND_LABEL_TYPE = 2;
     //************************************//
 
     //
@@ -64,14 +69,14 @@ public class BrotherMainActivity extends AppCompatActivity {
 
         //************************************//
 
-        CustomArrayAdapter adapter = new CustomArrayAdapter(this, getLabels());
+        CustomArrayAdapter adapter = new CustomArrayAdapter(this, Arrays.asList(getQL700LabelList()));
         binding.spinner.setAdapter(adapter);
-        binding.spinner.setSelection(adapter.getCount() - 2);
+        binding.spinner.setSelection(adapter.getCount() - 3);
         binding.spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                selectedPosition = getLabels().get(position).ordinal();
+                selectedPosition = Arrays.asList(getQL700LabelList()).get(position).ordinal();
             }
 
             @Override
@@ -84,42 +89,56 @@ public class BrotherMainActivity extends AppCompatActivity {
         }
 
         setQRCodeImageView();
+        imageToPrint = getBitmapFromResource();
+
         //************************************//
 
         binding.setOnPrintClick(v -> {
-            print();
+            printButtonClicked();
+        });
+
+        binding.setOnFindPrinterModelAndLabelTypeClick(v -> {
+            findPrinterModel();
         });
     }
 
-    public void print() {
-
-        if (myPrinter2 == null)
+    public void printButtonClicked() {
+        if (myPrinter2 == null) {
             myPrinter2 = new Printer();
+        }
 
-        //************************************//
+        if (hasUSBPermission(REQUEST_CODE_PRINT)) {
+            setupAndPrintWithoutAskingPermission();
+        }
+    }
+
+    private boolean hasUSBPermission(int request_code) {
         UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         if (usbManager == null) {
             showToast("usbManager == null", true);
-            return;
+            return false;
         }
 
         UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
         if (usbDevice == null) {
             showToast("usbDevice == null", true);
-            return;
+            return false;
         }
 
         if (!usbManager.hasPermission(usbDevice)) {
-            PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
+
+            showToast("** if (!usbManager.hasPermission(usbDevice)) { **", true);
+            Intent intent = new Intent(ACTION_USB_PERMISSION);
+            intent.putExtra(REQUEST_CODE_USB_PERMISSION, request_code);
+
+            PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, intent, 0);
             usbManager.requestPermission(usbDevice, permissionIntent);
             registerReceiver(mUsbReceiver, new IntentFilter(ACTION_USB_PERMISSION));
-            return;
+            return false;
         }
+        showToast("return *****************", true);
 
-        Log.e("LOGGGG", "print()");
-
-        setupAndPrint();
-        //************************************//
+        return true;
     }
 
     private void setQRCodeImageView() {
@@ -132,7 +151,7 @@ public class BrotherMainActivity extends AppCompatActivity {
             int width = point.x;
             int height = point.y;
             int smallerDimension = width < height ? width : height;
-            smallerDimension = smallerDimension * 4 / 4; // 3 / 4
+            smallerDimension = smallerDimension * 3 / 4; // 3 / 4
 
             qrgEncoder = new QRGEncoder(
                     inputValue, null,
@@ -149,7 +168,179 @@ public class BrotherMainActivity extends AppCompatActivity {
         }
     }
 
-    private void setupAndPrint() {
+
+    private Bitmap getBitmapFromResource() {
+        Drawable drawable = getResources().getDrawable(R.drawable.ic_brother);
+        Canvas canvas = new Canvas();
+        Bitmap bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        canvas.setBitmap(bitmap);
+        drawable.setBounds(0, 0, drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight());
+        drawable.draw(canvas);
+        return bitmap;
+
+//        binding.frameLayoutTicket.setDrawingCacheEnabled(true);
+//        binding.frameLayoutTicket.buildDrawingCache();
+////        imageToPrint = binding.frameLayoutTicket.getDrawingCache();
+//        return  binding.frameLayoutTicket.getDrawingCache();
+    }
+
+    protected class PrinterThread extends Thread {
+
+        @Override
+        public void run() {
+            printResult2 = new PrinterStatus();
+            boolean startCommunication = myPrinter2.startCommunication();
+            showToast("run() : 1 startCommunication: " + startCommunication, true);
+            Bitmap bitmap1 = imageToPrint.copy(imageToPrint.getConfig(), true);
+            printResult2 = myPrinter2.printImage(bitmap1);
+            showToast("run() : 2", true);
+
+            if (printResult2.errorCode != PrinterInfo.ErrorCode.ERROR_NONE) {
+//                runOnUiThread
+                showToast("errorCode -> Alert Message : " + printResult2.errorCode.name(), true);
+            }
+            boolean endCommunication = myPrinter2.endCommunication();
+            showToast("run() : 3 : endCommunication: " + endCommunication, true);
+        }
+    }
+
+    protected class FindPrinterModelAndLabelTypeThread extends Thread {
+
+        @Override
+        public void run() {
+
+            PrinterInfo.Model printerModel;
+            LabelInfo.QL700 labelType;
+
+            if (myPrinter2 == null)
+                myPrinter2 = new Printer();
+
+            myPrinterInfo2 = new PrinterInfo();
+            myPrinterInfo2 = myPrinter2.getPrinterInfo();
+            myPrinterInfo2.port = PrinterInfo.Port.USB;
+
+            for (PrinterInfo.Model model: getPrinterModelList()) {
+
+                myPrinterInfo2.printerModel =  model;
+
+                for (LabelInfo.QL700 ql700: getQL700LabelList()) {
+                    myPrinterInfo2.labelNameIndex = ql700.ordinal();
+
+                    myPrinter2.setPrinterInfo(myPrinterInfo2);
+
+                    myPrinter2.startCommunication();
+                    PrinterStatus printerStatus = myPrinter2.getPrinterStatus();
+                    myPrinter2.endCommunication();
+                    if (printerStatus.errorCode == PrinterInfo.ErrorCode.ERROR_NONE) {
+                        printerModel = model;
+                        labelType = ql700;
+                        showToast("printerModel : " + printerModel + " * " +  "labelType: " + labelType, false);
+                        return;
+                    }
+                }
+            }
+            Log.e("LOG_TAG", "NOT FOUND");
+        }
+    }
+
+
+
+    private void showToast(String text, boolean showToast) {
+        runOnUiThread(() -> {
+            Log.e("LOG_TAG", "*** " + text);
+            binding.textViewErrorCode.setText(text);
+            if (showToast) Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
+        });
+    }
+
+
+    private void findPrinterModel() {
+        if (myPrinter2 == null) {
+            myPrinter2 = new Printer();
+        }
+
+        if (hasUSBPermission(REQUEST_CODE_GET_PRINTER_MODEL_AND_LABEL_TYPE)) {
+            FindPrinterModelAndLabelTypeThread findPrinterModelAndLabelTypeThread = new FindPrinterModelAndLabelTypeThread();
+            findPrinterModelAndLabelTypeThread.start();
+        }
+    }
+
+
+    //************************************//
+    private LabelInfo.QL700[] getQL700LabelList() {
+        return LabelInfo.QL700.values();
+    }
+
+    private PrinterInfo.Model[] getPrinterModelList() {
+        return PrinterInfo.Model.values();
+    }
+    //************************************//
+
+
+
+    //************************************//
+    int PERMISSION_ALL = 1;
+    String[] PERMISSIONS = {
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
+
+    public static boolean hasPermissions(Context context, String... permissions) {
+        if (context != null && permissions != null) {
+            for (String permission : permissions) {
+                if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    //TODO
+
+    BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            showToast(" ********* BroadcastReceiver -> onReceive", true);
+
+            String action = intent.getAction();
+            if (ACTION_USB_PERMISSION.equals(action)) {
+                synchronized (this) {
+                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                        switch (intent.getIntExtra(REQUEST_CODE_USB_PERMISSION, 0)) {
+                            case REQUEST_CODE_GET_PRINTER_MODEL_AND_LABEL_TYPE:
+                                findPrinterModel();
+                                break;
+                            case REQUEST_CODE_PRINT:
+                                setupAndPrintWithoutAskingPermission();
+                                break;
+                        }
+                    }
+                    else {
+                        if (myPrinter2 == null) {
+                            myPrinter2 = new Printer();
+                        }
+
+                        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+                        if (usbManager == null) {
+                            return;
+                        }
+
+                        UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
+                        if (usbDevice == null) {
+                            return;
+                        }
+
+                        PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
+                        usbManager.requestPermission(usbDevice, permissionIntent);
+
+                        usbManager.requestPermission(usbDevice, permissionIntent);
+                    }
+                }
+            }
+        }
+    };
+    //************************************//
+
+    private void setupAndPrintWithoutAskingPermission() {
         myPrinterInfo2 = new PrinterInfo();
         myPrinterInfo2 = myPrinter2.getPrinterInfo();
         myPrinterInfo2.printerModel = PrinterInfo.Model.QL_800;
@@ -168,134 +359,13 @@ public class BrotherMainActivity extends AppCompatActivity {
         myPrinterInfo2.isSpecialTape = false;
         myPrinter2.setPrinterInfo(myPrinterInfo2);
 
-        FrameLayout view = findViewById(R.id.frame_layout_ticket);
-        view.setDrawingCacheEnabled(true);
-        view.buildDrawingCache();
-        imageToPrint = view.getDrawingCache();
-        print2();
-    }
-
-    private void print2() {
         PrinterThread printerThread = new PrinterThread();
         printerThread.start();
     }
 
-    protected class PrinterThread extends Thread {
 
-        @Override
-        public void run() {
-            printResult2 = new PrinterStatus();
-            myPrinter2.startCommunication();
-            printResult2 = myPrinter2.printImage(imageToPrint);
-
-            if (printResult2.errorCode != PrinterInfo.ErrorCode.ERROR_NONE) {
-
-                runOnUiThread(() -> {
-                    binding.textViewErrorCode.setText("errorCode: " + printResult2.errorCode.name());
-                        showToast("errorCode -> Alert Message : " + printResult2.errorCode.name(), true);
-                });
-
-            }
-
-            myPrinter2.endCommunication();
-        }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
-
-    private void showToast(String text, boolean showToast) {
-        runOnUiThread(() -> {
-            Log.e("LOG_TAG", "Toast: " + text);
-            binding.textViewErrorCode.setText(text);
-            if (showToast) Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
-        });
-    }
-
-    //************************************//
-
-    private List<LabelInfo.QL700> getLabels() {
-        List<LabelInfo.QL700> list = new ArrayList<>();
-        list.add(LabelInfo.QL700.W62H100);
-        list.add(LabelInfo.QL700.W62);
-        list.add(LabelInfo.QL700.W12);
-        list.add(LabelInfo.QL700.W17H54);
-        list.add(LabelInfo.QL700.W17H87);
-        list.add(LabelInfo.QL700.W23H23);
-        list.add(LabelInfo.QL700.W29);
-        list.add(LabelInfo.QL700.W29H42);
-        list.add(LabelInfo.QL700.W29H90);
-        list.add(LabelInfo.QL700.W38);
-        list.add(LabelInfo.QL700.W38H90);
-        list.add(LabelInfo.QL700.W39H48);
-        list.add(LabelInfo.QL700.W50);
-        list.add(LabelInfo.QL700.W52H29);
-        list.add(LabelInfo.QL700.W54);
-        list.add(LabelInfo.QL700.W54H29);
-        list.add(LabelInfo.QL700.W60H86);
-        list.add(LabelInfo.QL700.W62H29);
-        list.add(LabelInfo.QL700.W62RB);
-        list.add(LabelInfo.QL700.UNSUPPORT);
-        return list;
-    }
-
-    int PERMISSION_ALL = 1;
-    String[] PERMISSIONS = {
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            android.Manifest.permission.INTERNET,
-            android.Manifest.permission.BLUETOOTH,
-            android.Manifest.permission.BLUETOOTH_ADMIN
-    };
-
-    public static boolean hasPermissions(Context context, String... permissions) {
-        if (context != null && permissions != null) {
-            for (String permission : permissions) {
-                if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            showToast("BroadcastReceiver -> onReceive", true);
-            String action = intent.getAction();
-            if (ACTION_USB_PERMISSION.equals(action)) {
-                synchronized (this) {
-                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        showToast("USB permission granted", false);
-                        setupAndPrint();
-                    }
-                    else {
-                        if (myPrinter2 == null)
-                            myPrinter2 = new Printer();
-
-                        //************************************//
-                        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
-                        if (usbManager == null) {
-                            showToast("usbManager == null", true);
-                            return;
-                        }
-
-                        UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
-                        if (usbDevice == null) {
-                            showToast("usbDevice == null", true);
-                            return;
-                        }
-
-                        PendingIntent permissionIntent = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(ACTION_USB_PERMISSION), 0);
-                        usbManager.requestPermission(usbDevice, permissionIntent);
-
-                        if (!usbManager.hasPermission(usbDevice)) {
-                            usbManager.requestPermission(usbDevice, permissionIntent);
-                        }
-                        showToast("USB permission rejected", false);
-                    }
-                }
-            }
-        }
-    };
-
-    //************************************//
-
 }

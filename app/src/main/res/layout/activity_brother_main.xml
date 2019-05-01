@@ -9,6 +9,10 @@
             name="onPrintClick"
             type="android.view.View.OnClickListener" />
 
+        <variable
+            name="onFindPrinterModelAndLabelTypeClick"
+            type="android.view.View.OnClickListener" />
+
     </data>
 
     <ScrollView
@@ -44,6 +48,13 @@
                     android:gravity="center"/>
 
                 <Button
+                    android:id="@+id/buttonPressToFindPrinterModelAndLabelType"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:onClick="@{(v) -> onFindPrinterModelAndLabelTypeClick.onClick(v)}"
+                    android:text="Find Printer Model And Label Type"/>
+
+                <Button
                     android:id="@+id/buttonPressToPrint"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -55,14 +66,12 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginVertical="10dp"
-                    android:minWidth="100dp"></Spinner>
+                    android:minWidth="100dp"/>
 
             </LinearLayout>
 
         </LinearLayout>
 
-
     </ScrollView>
-
 
 </layout>
