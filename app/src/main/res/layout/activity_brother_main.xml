@@ -61,13 +61,6 @@
                     android:onClick="@{(v) -> onPrintClick.onClick(v)}"
                     android:text="Press To Print"/>
 
-                <Spinner
-                    android:id="@+id/spinner"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginVertical="10dp"
-                    android:minWidth="100dp"/>
-
             </LinearLayout>
 
         </LinearLayout>
