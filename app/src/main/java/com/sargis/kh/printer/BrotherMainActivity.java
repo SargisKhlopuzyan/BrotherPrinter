@@ -11,16 +11,16 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
 import com.brother.ptouch.sdk.Printer;
 import com.sargis.kh.printer.databinding.ActivityBrotherMainBinding;
 
-public class BrotherMainActivity extends AppCompatActivity implements PrinterContract.View {
+public class BrotherMainActivity extends AppCompatActivity {
 
     ActivityBrotherMainBinding binding;
-    PrintingPresenter printingPresenter;
 
     int PERMISSION_ALL = 1;
     String[] PERMISSIONS = {
@@ -32,38 +32,35 @@ public class BrotherMainActivity extends AppCompatActivity implements PrinterCon
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_brother_main);
 
-        printingPresenter = new PrintingPresenter(this, this);
 
         if (!hasPermissions(this, PERMISSIONS)) {
             ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_ALL);
         }
 
+        if (savedInstanceState == null) {
+            BrotherFragment newFragment = new BrotherFragment();
+            FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+            ft.replace(R.id.frame_layout, newFragment).commit();
+        }
 
-        binding.setOnPrintClick(v -> {
-            printingPresenter.startPrinting();
-        });
-
-        binding.setOnFindPrinterModelAndLabelTypeClick(v -> {
-            printingPresenter.findPrinterModel();
-        });
     }
 
 
-    public boolean hasUSBPermission(Printer myPrinter2, int requestCode) {
+    public boolean hasUSBPermission(Printer myPrinter2, UsbManager usbManager, UsbDevice usbDevice, int requestCode) {
 
-        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
-        if (usbManager == null) {
-            showToast("usbManager == null", true);
-            return false;
-        }
-
-        UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
-        if (usbDevice == null) {
-            showToast("usbDevice == null", true);
-            return false;
-        }
-
-        if (!usbManager.hasPermission(usbDevice)) {
+//        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+//        if (usbManager == null) {
+//            showToast("usbManager == null", true);
+//            return false;
+//        }
+//
+//        UsbDevice usbDevice = myPrinter2.getUsbDevice(usbManager);
+//        if (usbDevice == null) {
+//            showToast("usbDevice == null", true);
+//            return false;
+//        }
+//
+//        if (!usbManager.hasPermission(usbDevice)) {
 
             showToast("** if (!usbManager.hasPermission(usbDevice)) { **", true);
             Intent intent = new Intent(PrintingPresenter.ACTION_USB_PERMISSION);
@@ -74,9 +71,9 @@ public class BrotherMainActivity extends AppCompatActivity implements PrinterCon
 
             registerReceiver(mUsbReceiver, new IntentFilter(PrintingPresenter.ACTION_USB_PERMISSION));
             return false;
-        }
-        showToast("return *****************", true);
-        return true;
+//        }
+//        showToast("return *****************");
+//        return true;
     }
 
     BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
@@ -91,11 +88,13 @@ public class BrotherMainActivity extends AppCompatActivity implements PrinterCon
 
                         switch (intent.getIntExtra(PrintingPresenter.REQUEST_CODE_USB_PERMISSION, 0)) {
                             case PrintingPresenter.REQUEST_CODE_GET_PRINTER_MODEL_AND_LABEL_TYPE:
-                                printingPresenter.findPrinterModel();
+                                //TODO
+//                                printingPresenter.findPrinterModel();
 
                                 break;
                             case PrintingPresenter.REQUEST_CODE_PRINT:
-                                printingPresenter.setupAndPrintWithoutAskingPermission();
+                                //TODO
+//                                printingPresenter.setupAndPrintWithoutAskingPermission();
                                 break;
                         }
 
@@ -124,21 +123,6 @@ public class BrotherMainActivity extends AppCompatActivity implements PrinterCon
             }
         }
     };
-
-    @Override
-    public void printingStatusUpdated(String status) {
-
-    }
-
-    @Override
-    public void printingSucceed() {
-
-    }
-
-    @Override
-    public void printingError(String errorMessage) {
-
-    }
 
     private void showToast(String text, boolean showToast) {
 //        runOnUiThread(() -> {

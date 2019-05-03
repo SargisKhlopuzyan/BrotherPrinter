@@ -41,7 +41,7 @@ public class PrintingPresenter implements PrinterContract.Presenter {
         labelType = LabelInfo.QL700.W62RB;
         imageToPrint = getBitmapFromResource();
 
-        showToast(" ********* PrintingPresenter", true);
+        showToast(" ********* PrintingPresenter");
 
     }
 
@@ -94,17 +94,17 @@ public class PrintingPresenter implements PrinterContract.Presenter {
         public void run() {
             printResult2 = new PrinterStatus();
             boolean startCommunication = myPrinter2.startCommunication();
-            showToast("run() : 1 startCommunication: " + startCommunication, true);
+            showToast("run() : 1 startCommunication: " + startCommunication);
             Bitmap bitmap1 = imageToPrint.copy(imageToPrint.getConfig(), true);
             printResult2 = myPrinter2.printImage(bitmap1);
-            showToast("run() : 2", true);
+            showToast("run() : 2");
 
             if (printResult2.errorCode != PrinterInfo.ErrorCode.ERROR_NONE) {
 //                runOnUiThread
-                showToast("errorCode -> Alert Message : " + printResult2.errorCode.name(), true);
+                showToast("errorCode -> Alert Message : " + printResult2.errorCode.name());
             }
             boolean endCommunication = myPrinter2.endCommunication();
-            showToast("run() : 3 : endCommunication: " + endCommunication, true);
+            showToast("run() : 3 : endCommunication: " + endCommunication);
         }
     }
 
@@ -135,7 +135,7 @@ public class PrintingPresenter implements PrinterContract.Presenter {
                     if (printerStatus.errorCode == PrinterInfo.ErrorCode.ERROR_NONE) {
                         printerModel = model;
                         labelType = ql700;
-                        showToast("printerModel : " + printerModel + " * " +  "labelType: " + labelType, false);
+                        showToast("printerModel : " + printerModel + " * " +  "labelType: " + labelType);
                         return;
                     }
                 }
@@ -175,7 +175,7 @@ public class PrintingPresenter implements PrinterContract.Presenter {
 
     }
 
-    private void showToast(String text, boolean showToast) {
+    private void showToast(String text) {
         Log.e("LOG_TAG", "*** " + text);
     }
 
